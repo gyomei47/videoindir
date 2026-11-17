@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎬 VideoIndir</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a2e;
+      --surface2: #16213e;
+      --accent: #e94560;
+      --accent2: #ff6b6b;
+      --text: #eee;
+      --text2: #aaa;
+      --success: #00d26a;
+      --radius: 16px;
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .container {
+      max-width: 720px;
+      width: 100%;
+      padding: 20px;
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      padding: 40px 0 30px;
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: var(--text2);
+      font-size: 1rem;
+    }
+
+    /* Search Box */
+    .search-box {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+
+    .input-group {
+      display: flex;
+      gap: 12px;
+    }
+
+    .input-group input {
+      flex: 1;
+      background: var(--surface2);
+      border: 2px solid transparent;
+      border-radius: 12px;
+      padding: 14px 18px;
+      font-size: 1rem;
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.3s;
+    }
+
+    .input-group input:focus {
+      border-color: var(--accent);
+    }
+
+    .input-group input::placeholder {
+      color: #666;
+    }
+
+    .btn {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border: none;
+      border-radius: 12px;
+      padding: 14px 28px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: white;
+      cursor: pointer;
+      transition: transform 0.2s, opacity 0.2s;
+      white-space: nowrap;
+    }
+
+    .btn:hover { transform: scale(1.03); }
+    .btn:active { transform: scale(0.97); }
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Video Info Card */
+    .video-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      display: none;
+    }
+
+    .video-card.show { display: block; animation: slideIn 0.4s ease; }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .video-thumbnail {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+    }
+
+    .video-info {
+      padding: 20px;
+    }
+
+    .video-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      line-height: 1.4;
+    }
+
+    .video-meta {
+      display: flex;
+      gap: 16px;
+      color: var(--text2);
+      font-size: 0.9rem;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+
+    .video-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* Format Selection */
+    .format-section {
+      padding: 0 20px 20px;
+    }
+
+    .format-section h3 {
+      font-size: 0.95rem;
+      color: var(--text2);
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .format-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 300px;
+      overflow-y: auto;
+      padding-right: 8px;
+    }
+
+    .format-list::-webkit-scrollbar {
+      width: 6px;
+    }
+    .format-list::-webkit-scrollbar-track {
+      background: var(--surface2);
+      border-radius: 3px;
+    }
+    .format-list::-webkit-scrollbar-thumb {
+      background: var(--accent);
+      border-radius: 3px;
+    }
+
+    .format-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface2);
+      border-radius: 10px;
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+      border: 2px solid transparent;
+    }
+
+    .format-item:hover {
+      background: rgba(233, 69, 96, 0.1);
+    }
+
+    .format-item.selected {
+      border-color: var(--accent);
+      background: rgba(233, 69, 96, 0.15);
+    }
+
+    .format-label {
+      font-size: 0.95rem;
+    }
+
+    .format-badge {
+      font-size: 0.75rem;
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-weight: 600;
+    }
+
+    .badge-video { background: rgba(233, 69, 96, 0.2); color: var(--accent2); }
+    .badge-merged { background: rgba(0, 210, 106, 0.2); color: var(--success); }
+    .badge-audio { background: rgba(100, 100, 255, 0.2); color: #8888ff; }
+
+    .download-btn-container {
+      padding: 0 20px 20px;
+    }
+
+    .download-btn {
+      width: 100%;
+      padding: 16px;
+      font-size: 1.1rem;
+    }
+
+    /* Progress */
+    .progress-card {
+      background: var(--surface);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+      display: none;
+    }
+
+    .progress-card.show { display: block; animation: slideIn 0.4s ease; }
+
+    .progress-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+
+    .progress-title {
+      font-weight: 600;
+    }
+
+    .progress-pct {
+      font-size: 1.5rem;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .progress-bar-bg {
+      height: 8px;
+      background: var(--surface2);
+      border-radius: 4px;
+      overflow: hidden;
+      margin-bottom: 12px;
+    }
+
+    .progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      border-radius: 4px;
+      transition: width 0.3s;
+      width: 0%;
+    }
+
+    .progress-details {
+      display: flex;
+      justify-content: space-between;
+      color: var(--text2);
+      font-size: 0.85rem;
+    }
+
+    .progress-status {
+      text-align: center;
+      margin-top: 12px;
+      font-size: 0.9rem;
+    }
+
+    .status-downloading { color: var(--accent2); }
+    .status-merging { color: #ffd93d; }
+    .status-completed { color: var(--success); }
+    .status-error { color: #ff4444; }
+
+    .download-link {
+      display: inline-block;
+      margin-top: 16px;
+      background: linear-gradient(135deg, var(--success), #00b894);
+      padding: 12px 32px;
+      border-radius: 12px;
+      color: white;
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s;
+      width: 100%;
+      text-align: center;
+    }
+
+    .download-link:hover { transform: scale(1.02); }
+
+    /* Loading spinner */
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255,255,255,0.3);
+      border-top-color: white;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      vertical-align: middle;
+      margin-right: 8px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Error */
+    .error-msg {
+      background: rgba(255, 68, 68, 0.1);
+      border: 1px solid rgba(255, 68, 68, 0.3);
+      border-radius: 10px;
+      padding: 14px 18px;
+      margin-bottom: 16px;
+      color: #ff6b6b;
+      display: none;
+      font-size: 0.9rem;
+    }
+
+    .error-msg.show { display: block; animation: slideIn 0.3s ease; }
+
+    /* Footer */
+    .footer {
+      text-align: center;
+      padding: 30px;
+      color: #444;
+      font-size: 0.8rem;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      .input-group {
+        flex-direction: column;
+      }
+      .header h1 { font-size: 2rem; }
+      .video-meta { font-size: 0.8rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>🎬 VideoIndir</h1>
+      <p>YouTube video ve ses indirme aracı</p>
+    </div>
+
+    <div class="search-box">
+      <div class="input-group">
+        <input type="text" id="urlInput" placeholder="YouTube video URL'si yapıştırın..." autofocus>
+        <button class="btn" id="fetchBtn" onclick="fetchInfo()">Getir</button>
+      </div>
+    </div>
+
+    <div id="errorMsg" class="error-msg"></div>
+
+    <div id="videoCard" class="video-card">
+      <img id="thumbnail" class="video-thumbnail" src="" alt="">
+      <div class="video-info">
+        <div class="video-title" id="videoTitle"></div>
+        <div class="video-meta">
+          <span id="uploader">📺 </span>
+          <span id="duration">⏱️ </span>
+          <span id="views">👁️ </span>
+        </div>
+      </div>
+      <div class="format-section">
+        <h3>📦 Format Seçin</h3>
+        <div class="format-list" id="formatList"></div>
+      </div>
+      <div class="download-btn-container">
+        <button class="btn download-btn" id="downloadBtn" onclick="startDownload()">
+          ⬇️ İndir
+        </button>
+      </div>
+    </div>
+
+    <div id="progressCard" class="progress-card">
+      <div class="progress-header">
+        <span class="progress-title" id="progressTitle">İndiriliyor...</span>
+        <span class="progress-pct" id="progressPct">0%</span>
+      </div>
+      <div class="progress-bar-bg">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      <div class="progress-details">
+        <span id="progressSpeed">-</span>
+        <span id="progressEta">-</span>
+      </div>
+      <div class="progress-status" id="progressStatus"></div>
+      <div id="downloadLinkContainer" style="text-align:center;"></div>
+    </div>
+
+    <div class="footer">
+      Kişisel kullanım için • VideoIndir
+    </div>
+  </div>
+
+  <script>
+    let selectedFormat = null;
+    let videoFormats = [];
+
+    // Enter key support
+    document.getElementById('urlInput').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') fetchInfo();
+    });
+
+    async function fetchInfo() {
+      const url = document.getElementById('urlInput').value.trim();
+      if (!url) return;
+
+      hideError();
+      const btn = document.getElementById('fetchBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Yükleniyor';
+
+      document.getElementById('videoCard').classList.remove('show');
+      document.getElementById('progressCard').classList.remove('show');
+
+      try {
+        const res = await fetch('/api/info', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          showError(data.error || 'Bir hata oluştu');
+          return;
+        }
+
+        // Fill card
+        document.getElementById('thumbnail').src = data.thumbnail || '';
+        document.getElementById('videoTitle').textContent = data.title;
+        document.getElementById('uploader').textContent = '📺 ' + (data.uploader || '-');
+        document.getElementById('duration').textContent = '⏱️ ' + formatDuration(data.duration);
+        document.getElementById('views').textContent = '👁️ ' + formatNumber(data.view_count);
+
+        videoFormats = data.formats;
+        renderFormats(data.formats);
+
+        document.getElementById('videoCard').classList.add('show');
+
+      } catch (e) {
+        showError('Sunucuya bağlanılamadı: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Getir';
+      }
+    }
+
+    function renderFormats(formats) {
+      const list = document.getElementById('formatList');
+      list.innerHTML = '';
+      selectedFormat = formats[0]; // default: first (best merged)
+
+      formats.forEach((f, i) => {
+        const item = document.createElement('div');
+        item.className = 'format-item' + (i === 0 ? ' selected' : '');
+        
+        const badgeClass = f.type === 'merged' ? 'badge-merged' : f.type === 'audio' ? 'badge-audio' : 'badge-video';
+        const badgeText = f.type === 'merged' ? '⭐ Önerilen' : f.type === 'audio' ? '🎵 Ses' : '🎥 Video';
+
+        item.innerHTML = `
+          <span class="format-label">${f.label}</span>
+          <span class="format-badge ${badgeClass}">${badgeText}</span>
+        `;
+
+        item.onclick = () => {
+          document.querySelectorAll('.format-item').forEach(el => el.classList.remove('selected'));
+          item.classList.add('selected');
+          selectedFormat = f;
+        };
+
+        list.appendChild(item);
+      });
+    }
+
+    async function startDownload() {
+      if (!selectedFormat) return;
+
+      const url = document.getElementById('urlInput').value.trim();
+      const btn = document.getElementById('downloadBtn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Başlatılıyor...';
+
+      hideError();
+
+      try {
+        const res = await fetch('/api/download', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            url,
+            format_id: selectedFormat.format_id,
+            type: selectedFormat.type
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          showError(data.error || 'İndirme başlatılamadı');
+          return;
+        }
+
+        // Show progress
+        document.getElementById('progressCard').classList.add('show');
+        document.getElementById('downloadLinkContainer').innerHTML = '';
+        trackProgress(data.downloadId);
+
+      } catch (e) {
+        showError('Sunucu hatası: ' + e.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '⬇️ İndir';
+      }
+    }
+
+    async function trackProgress(downloadId) {
+      const interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/progress/${downloadId}`);
+          const data = await res.json();
+
+          document.getElementById('progressPct').textContent = Math.round(data.progress) + '%';
+          document.getElementById('progressBar').style.width = data.progress + '%';
+          document.getElementById('progressSpeed').textContent = data.speed || '-';
+          document.getElementById('progressEta').textContent = data.eta ? 'ETA: ' + data.eta : '-';
+
+          const statusEl = document.getElementById('progressStatus');
+          
+          if (data.status === 'downloading') {
+            statusEl.className = 'progress-status status-downloading';
+            statusEl.textContent = '📥 İndiriliyor...';
+            document.getElementById('progressTitle').textContent = 'İndiriliyor...';
+          } else if (data.status === 'merging') {
+            statusEl.className = 'progress-status status-merging';
+            statusEl.textContent = '🔄 Video ve ses birleştiriliyor...';
+            document.getElementById('progressTitle').textContent = 'Birleştiriliyor...';
+          } else if (data.status === 'completed') {
+            clearInterval(interval);
+            statusEl.className = 'progress-status status-completed';
+            statusEl.textContent = '✅ Tamamlandı!';
+            document.getElementById('progressTitle').textContent = 'Tamamlandı!';
+            document.getElementById('progressPct').textContent = '100%';
+            document.getElementById('progressBar').style.width = '100%';
+
+            document.getElementById('downloadLinkContainer').innerHTML = 
+              `<a class="download-link" href="/api/file/${downloadId}" download>
+                📁 Dosyayı İndir
+              </a>`;
+          } else if (data.status === 'error') {
+            clearInterval(interval);
+            statusEl.className = 'progress-status status-error';
+            statusEl.textContent = '❌ Hata: ' + (data.error || 'Bilinmeyen hata');
+            document.getElementById('progressTitle').textContent = 'Hata!';
+          }
+        } catch (e) {
+          // ignore fetch errors during polling
+        }
+      }, 500);
+    }
+
+    function showError(msg) {
+      const el = document.getElementById('errorMsg');
+      el.textContent = msg;
+      el.classList.add('show');
+    }
+
+    function hideError() {
+      document.getElementById('errorMsg').classList.remove('show');
+    }
+
+    function formatDuration(seconds) {
+      if (!seconds) return '-';
+      const h = Math.floor(seconds / 3600);
+      const m = Math.floor((seconds % 3600) / 60);
+      const s = seconds % 60;
+      if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      return `${m}:${String(s).padStart(2,'0')}`;
+    }
+
+    function formatNumber(n) {
+      if (!n) return '-';
+      if (n >= 1000000) return (n/1000000).toFixed(1) + 'M';
+      if (n >= 1000) return (n/1000).toFixed(1) + 'K';
+      return n.toString();
+    }
+  </script>
+</body>
+</html>
