@@ -12,25 +12,18 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Set up user for Hugging Face Spaces (UID 1000)
-RUN useradd -m -u 1000 user
-USER user
-ENV HOME=/home/user \
-    PATH=/home/user/.local/bin:$PATH \
-    PORT=7860
-
-WORKDIR $HOME/app
+WORKDIR /app
 
 # Install app dependencies
-COPY --chown=user:user package*.json ./
+COPY package*.json ./
 RUN npm install --production
 
 # Copy application source
-COPY --chown=user:user . .
+COPY . .
 
-# Ensure downloads directory exists with correct permissions
-RUN mkdir -p downloads && chmod 777 downloads
+# Ensure downloads directory exists
+RUN mkdir -p downloads
 
-EXPOSE 7860
+EXPOSE 3456
 
 CMD ["node", "server.js"]
