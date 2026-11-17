@@ -9,36 +9,56 @@ const app = express();
 const PORT = process.env.PORT || 3456;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.static('public'));
 app.use('/downloads', express.static('downloads'));
 
 // Active downloads tracking
 const activeDownloads = new Map();
 
-// Refresh PATH to pick up newly installed tools
-function getRefreshedPath() {
-  try {
-    const machinePath = execSync('powershell -Command "[System.Environment]::GetEnvironmentVariable(\'Path\',\'Machine\')"', { encoding: 'utf-8' }).trim();
-    const userPath = execSync('powershell -Command "[System.Environment]::GetEnvironmentVariable(\'Path\',\'User\')"', { encoding: 'utf-8' }).trim();
-    return machinePath + ';' + userPath;
-  } catch {
-    return process.env.PATH;
-  }
-}
-
-const refreshedPath = getRefreshedPath();
-
-// Cookie file path (optional)
+// Cookie file path
 const COOKIES_FILE = path.join(__dirname, 'cookies.txt');
 
-function getCookieArgs() {
-  if (fs.existsSync(COOKIES_FILE)) {
-    console.log('Using cookies file:', COOKIES_FILE);
-    return ['--cookies', COOKIES_FILE];
+// If YOUTUBE_COOKIE env variable exists, write to cookies.txt
+if (process.env.YOUTUBE_COOKIE && !fs.existsSync(COOKIES_FILE)) {
+  try {
+    fs.writeFileSync(COOKIES_FILE, process.env.YOUTUBE_COOKIE, 'utf-8');
+    console.log('✅ YOUTUBE_COOKIE env variable saved to cookies.txt');
+  } catch (err) {
+    console.error('Failed to write YOUTUBE_COOKIE:', err);
   }
-  return [];
 }
+
+function getBaseYtDlpArgs() {
+  const args = [
+    '--extractor-args', 'youtube:player_client=android,web',
+    '--no-check-certificates'
+  ];
+
+  if (fs.existsSync(COOKIES_FILE)) {
+    args.push('--cookies', COOKIES_FILE);
+  }
+
+  return args;
+}
+
+// Cookie upload/status endpoint
+app.get('/api/cookie-status', (req, res) => {
+  res.json({ hasCookie: fs.existsSync(COOKIES_FILE) });
+});
+
+app.post('/api/cookie', (req, res) => {
+  const { cookieText } = req.body;
+  if (!cookieText) return res.status(400).json({ error: 'Cookie içeriği boş' });
+
+  try {
+    fs.writeFileSync(COOKIES_FILE, cookieText.trim(), 'utf-8');
+    console.log('✅ Cookie başarıyla kaydedildi');
+    res.json({ success: true, message: 'Cookie kaydedildi!' });
+  } catch (e) {
+    res.status(500).json({ error: 'Cookie kaydedilemedi: ' + e.message });
+  }
+});
 
 // Get video info
 app.post('/api/info', async (req, res) => {
@@ -49,12 +69,12 @@ app.post('/api/info', async (req, res) => {
     const args = [
       '--dump-json',
       '--no-playlist',
-      ...getCookieArgs(),
+      ...getBaseYtDlpArgs(),
       url
     ];
 
     const proc = spawn('yt-dlp', args, {
-      env: { ...process.env, PATH: refreshedPath },
+      env: process.env,
       stdio: ['pipe', 'pipe', 'pipe']
     });
 
@@ -79,8 +99,7 @@ app.post('/api/info', async (req, res) => {
         // Add best video+audio merge options
         const heights = [2160, 1440, 1080, 720, 480, 360];
         for (const h of heights) {
-          // Check if this height exists in available formats
-          const hasHeight = info.formats?.some(f => f.height >= h && f.vcodec && f.vcodec !== 'none');
+          const hasHeight = info.formats?.some(f => (f.height >= h || f.height === h) && f.vcodec && f.vcodec !== 'none');
           if (hasHeight) {
             const label = `${h}p - MP4 (en iyi kalite)`;
             formats.push({
@@ -94,7 +113,7 @@ app.post('/api/info', async (req, res) => {
           }
         }
 
-        // Video + Audio combined formats (direct, no merge needed)
+        // Direct formats
         if (info.formats) {
           for (const f of info.formats) {
             if (f.vcodec && f.vcodec !== 'none' && f.acodec && f.acodec !== 'none') {
@@ -125,7 +144,18 @@ app.post('/api/info', async (req, res) => {
           type: 'audio'
         });
 
-        // Sort: merged first by height desc, then combined by height desc, then audio
+        // Fallback default format if empty
+        if (formats.length === 0) {
+          formats.push({
+            format_id: 'best',
+            label: 'Varsayılan En İyi Kalite (MP4)',
+            height: 720,
+            ext: 'mp4',
+            size: 0,
+            type: 'merged'
+          });
+        }
+
         formats.sort((a, b) => {
           const order = { merged: 0, video: 1, audio: 2 };
           if (order[a.type] !== order[b.type]) return order[a.type] - order[b.type];
@@ -164,7 +194,7 @@ app.post('/api/download', (req, res) => {
 
   let args = [
     '--no-playlist',
-    ...getCookieArgs(),
+    ...getBaseYtDlpArgs(),
     '--newline',
     '--progress',
     '-o', outputTemplate,
@@ -177,7 +207,7 @@ app.post('/api/download', (req, res) => {
   } else if (format_id) {
     args.push('-f', format_id);
   } else {
-    args.push('-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]', '--merge-output-format', 'mp4');
+    args.push('-f', 'bestvideo+bestaudio/best', '--merge-output-format', 'mp4');
   }
 
   args.push(url);
@@ -185,7 +215,7 @@ app.post('/api/download', (req, res) => {
   console.log(`Starting download ${downloadId}:`, 'yt-dlp', args.join(' '));
 
   const proc = spawn('yt-dlp', args, {
-    env: { ...process.env, PATH: refreshedPath },
+    env: process.env,
     stdio: ['pipe', 'pipe', 'pipe']
   });
 
@@ -206,7 +236,6 @@ app.post('/api/download', (req, res) => {
   proc.stdout.on('data', (data) => {
     const lines = data.toString().split('\n');
     for (const line of lines) {
-      // Parse progress: [download]  45.3% of  123.45MiB at  5.67MiB/s ETA 00:15
       const progressMatch = line.match(/\[download\]\s+([\d.]+)%\s+of\s+~?([\d.]+\s*\w+)\s+at\s+([\d.]+\s*\w+\/s)\s+ETA\s+(\S+)/);
       if (progressMatch) {
         downloadInfo.progress = parseFloat(progressMatch[1]);
@@ -215,19 +244,16 @@ app.post('/api/download', (req, res) => {
         downloadInfo.eta = progressMatch[4];
       }
 
-      // Check for merge
       if (line.includes('[Merger]') || line.includes('[ffmpeg]') || line.includes('[ExtractAudio]')) {
         downloadInfo.status = 'merging';
         downloadInfo.progress = 100;
       }
 
-      // Check for destination
       const destMatch = line.match(/\[download\] Destination: (.+)/);
       if (destMatch) {
         downloadInfo.filename = path.basename(destMatch[1]);
       }
 
-      // Already downloaded
       if (line.includes('has already been downloaded')) {
         const alreadyMatch = line.match(/\[download\] (.+) has already been downloaded/);
         if (alreadyMatch) {
@@ -240,7 +266,6 @@ app.post('/api/download', (req, res) => {
 
   proc.stderr.on('data', (data) => {
     stderrLog += data.toString();
-    console.error('yt-dlp stderr:', data.toString());
   });
 
   proc.on('close', (code) => {
@@ -252,11 +277,9 @@ app.post('/api/download', (req, res) => {
       downloadInfo.status = 'completed';
       downloadInfo.progress = 100;
 
-      // Find the actual file
       const files = fs.readdirSync(downloadsDir).filter(f => f.startsWith(downloadId));
       if (files.length > 0) {
-        // prefer final file over part/temp files
-        const finalFile = files.find(f => !f.endsWith('.part') && !f.endsWith('.temp') && !f.endsWith('.webm.part')) || files[0];
+        const finalFile = files.find(f => !f.endsWith('.part') && !f.endsWith('.temp')) || files[0];
         downloadInfo.filename = finalFile;
       }
 
@@ -286,12 +309,11 @@ app.get('/api/file/:id', (req, res) => {
     return res.status(404).json({ error: 'Dosya bulunamadı' });
   }
 
-  // Clean filename (remove uuid prefix)
   const cleanName = info.filename.replace(/^[a-f0-9-]+_/, '');
   res.download(filePath, cleanName);
 });
 
-// Cleanup old files (older than 1 hour)
+// Cleanup old files (older than 30 minutes)
 setInterval(() => {
   const downloadsDir = path.join(__dirname, 'downloads');
   if (!fs.existsSync(downloadsDir)) return;
@@ -302,13 +324,12 @@ setInterval(() => {
     const filePath = path.join(downloadsDir, file);
     try {
       const stat = fs.statSync(filePath);
-      if (now - stat.mtimeMs > 3600000) {
+      if (now - stat.mtimeMs > 1800000) {
         fs.unlinkSync(filePath);
-        console.log(`Cleaned up: ${file}`);
       }
     } catch {}
   }
-}, 600000);
+}, 300000);
 
 function formatSize(bytes) {
   if (!bytes) return '?';
@@ -320,5 +341,5 @@ function formatSize(bytes) {
 
 app.listen(PORT, () => {
   console.log(`🎬 VideoIndir sunucusu çalışıyor: http://localhost:${PORT}`);
-  console.log(`Cookie dosyası: ${fs.existsSync(COOKIES_FILE) ? 'MEVCUT ✅' : 'YOK (cookie olmadan çalışılacak)'}`);
+  console.log(`Cookie dosyası: ${fs.existsSync(COOKIES_FILE) ? 'MEVCUT ✅' : 'YOK'}`);
 });

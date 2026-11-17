@@ -421,11 +421,48 @@
     </div>
 
     <div class="footer">
-      Kişisel kullanım için • VideoIndir
+      Kişisel kullanım için • VideoIndir • 
+      <a href="javascript:void(0)" onclick="toggleCookieModal()" style="color:var(--accent2); text-decoration:none;">🍪 Cookie Ayarla</a>
+    </div>
+
+    <!-- Cookie Modal / Drawer -->
+    <div id="cookieBox" style="display:none; background:var(--surface); border:1px solid #333; border-radius:12px; padding:20px; margin-top:15px;">
+      <h3 style="margin-bottom:8px; font-size:1rem;">🍪 YouTube Cookie (İsteğe Bağlı)</h3>
+      <p style="color:var(--text2); font-size:0.8rem; margin-bottom:12px;">Yaş kısıtlamalı veya bot doğrulamalı videolar için cookies.txt içeriğini buraya yapıştırabilirsiniz.</p>
+      <textarea id="cookieInput" style="width:100%; height:100px; background:var(--surface2); border:1px solid #444; border-radius:8px; color:#eee; padding:10px; font-family:monospace; font-size:0.8rem; resize:vertical;" placeholder="# Netscape HTTP Cookie File..."></textarea>
+      <div style="margin-top:10px; display:flex; gap:10px;">
+        <button class="btn" onclick="saveCookie()" style="padding:8px 18px; font-size:0.85rem;">Kaydet</button>
+        <button class="btn" onclick="toggleCookieModal()" style="padding:8px 18px; font-size:0.85rem; background:#444;">Kapat</button>
+      </div>
+      <div id="cookieStatus" style="font-size:0.8rem; margin-top:8px;"></div>
     </div>
   </div>
 
   <script>
+    function toggleCookieModal() {
+      const b = document.getElementById('cookieBox');
+      b.style.display = b.style.display === 'none' ? 'block' : 'none';
+    }
+
+    async function saveCookie() {
+      const text = document.getElementById('cookieInput').value;
+      if (!text) return;
+      const res = await fetch('/api/cookie', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ cookieText: text })
+      });
+      const data = await res.json();
+      const st = document.getElementById('cookieStatus');
+      if (res.ok) {
+        st.style.color = '#00d26a';
+        st.textContent = '✅ Cookie kaydedildi!';
+        setTimeout(toggleCookieModal, 1500);
+      } else {
+        st.style.color = '#ff6b6b';
+        st.textContent = '❌ ' + (data.error || 'Hata oluştu');
+      }
+    }
     let selectedFormat = null;
     let videoFormats = [];
 
