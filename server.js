@@ -31,6 +31,7 @@ if (process.env.YOUTUBE_COOKIE && !fs.existsSync(COOKIES_FILE)) {
 
 function getBaseYtDlpArgs() {
   const args = [
+    '--js-runtimes', 'node',
     '--extractor-args', 'youtube:player_client=android,web',
     '--no-check-certificates'
   ];
